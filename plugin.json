@@ -1,26 +1,29 @@
 {
-    "name": "Tidal Search",
-    "version": "1.0.1",
-    "author": "Audion Team",
-    "description": "Search and browse tracks from the Tidal catalog",
-    "type": "js",
-    "entry": "index.js",
-    "permissions": [
-        "network:fetch",
-        "ui:inject",
-        "player:control",
-        "library:write",
-        "library:read",
-        "settings:write",
-        "library:downloadTrack"
-    ],
-    "category": "library",
-    "tags": [
-        "search",
-        "tidal",
-        "streaming",
-        "music"
-    ],
-    "license": "MIT"
-
+  "name": "Tidal Search",
+  "version": "1.0.1",
+  "author": "Audion Team",
+  "description": "Search and browse tracks from the Tidal catalog",
+  "repo": "https://github.com/dupitydumb/tidal-search",
+  "manifest_url": null,
+  "type": "js",
+  "entry": "index.js",
+  "permissions": [
+    "network:fetch",
+    "ui:inject",
+    "player:control",
+    "library:write",
+    "library:read",
+    "settings:write",
+    "library:downloadTrack"
+  ],
+  "ui_slots": null,
+  "icon": null,
+  "category": "library",
+  "tags": [
+    "search",
+    "tidal",
+    "streaming",
+    "music"
+  ],
+  "license": "MIT"
 }
