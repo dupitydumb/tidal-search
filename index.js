@@ -2725,6 +2725,7 @@
       }
 
       let savedCount = 0;
+      let skippedCount = 0;
       let errorCount = 0;
 
       for (let i = 0; i < tracks.length; i++) {
@@ -2748,7 +2749,7 @@
         // Skip if already saved
         if (this.libraryTracks.has(String(track.id))) {
           console.log(`[TidalSearch] Skipping already saved track: ${track.title}`);
-          savedCount++;
+          skippedCount++;
           continue;
         }
 
@@ -2799,7 +2800,11 @@
 
       // Show result
       if (errorCount === 0) {
-        this.showToast(`✓ Saved all ${savedCount} tracks to library`);
+        this.showToast(
+          skippedCount > 0
+            ? `✓ Saved ${savedCount} tracks (${skippedCount} already in library)`
+            : `✓ Saved all ${savedCount} tracks to library`,
+        );
       } else {
         this.showToast(
           `Saved ${savedCount} tracks\n${errorCount} failed`,
@@ -2808,7 +2813,9 @@
       }
 
       this.hasNewChanges = true;
-      console.log(`[TidalSearch] Bulk save complete: ${savedCount} saved, ${errorCount} errors`);
+      console.log(
+        `[TidalSearch] Bulk save complete: ${savedCount} saved, ${skippedCount} skipped, ${errorCount} errors`,
+      );
     },
 
     // ═══════════════════════════════════════════════════════════════════════
