@@ -39,6 +39,7 @@
     searchMode: "track", // 'track' or 'artist'
     searchTimeout: null,
     currentResults: [],
+    searchCache: {}, // keyed by "mode:query" e.g. "track:adele"
     isPlaying: null, // Currently playing Tidal track ID
     libraryTracks: new Set(), // Set of external_ids or Tidal IDs already in library
     hasNewChanges: false, // Track if we've added new songs
@@ -95,11 +96,13 @@
         api.handleRequest("searchCover", async (data) => {
           const { title, artist, trackId, requester } = data;
           console.log(
-            `[TidalSearch] Cover search requested by: ${requester || "unknown"}`,
+            `[TidalSearch] Cover search requested by: ${requester || "unknown"} | title="${title}" artist="${artist}" trackId=${trackId ?? "none"}`,
           );
 
           // Call the existing searchCoverForRPC method
-          return await this.searchCoverForRPC(title, artist, trackId);
+          const result = await this.searchCoverForRPC(title, artist, trackId);
+          console.log(`[TidalSearch] Cover search result for "${title}": ${result ?? "null (no cover found)"}`);
+          return result;
         });
         console.log("[TidalSearch] Registered 'searchCover' request handler");
       }
@@ -119,6 +122,24 @@
       style.textContent = `
                 /* Tidal Search Panel */
                 #tidal-search-panel {
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%) scale(0.9);
+                    background: var(--bg-elevated, #181818);
+                    border: 1px solid var(--border-color, #404040);
+                    border-radius: 16px;
+                    padding: 24px;
+                    width: 650px;
+                    max-height: 80vh;
+                    z-index: 10001;
+                    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+                    opacity: 0;
+                    visibility: hidden;
+                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                    display: flex;
+                    flex-direction: column;
+                }
 
                 /* Download Progress Bar */
                 .tidal-download-progress {
@@ -164,24 +185,6 @@
                 .tidal-download-progress-text {
                     font-size: 14px;
                     color: var(--text-primary, #fff);
-                }
-                    position: fixed;
-                    top: 50%;
-                    left: 50%;
-                    transform: translate(-50%, -50%) scale(0.9);
-                    background: var(--bg-elevated, #181818);
-                    border: 1px solid var(--border-color, #404040);
-                    border-radius: 16px;
-                    padding: 24px;
-                    width: 650px;
-                    max-height: 80vh;
-                    z-index: 10001;
-                    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-                    opacity: 0;
-                    visibility: hidden;
-                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                    display: flex;
-                    flex-direction: column;
                 }
 
                 #tidal-search-panel.open {
@@ -962,9 +965,21 @@
                 .tidal-album-card-artist {
                     font-size: 12px;
                     color: var(--text-subdued, #6a6a6a);
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                    overflow: hidden;
+                }
+                .tidal-album-card-artist-name {
+                    white-space: nowrap;
                     overflow: hidden;
                     text-overflow: ellipsis;
+                    min-width: 0;
+                    flex: 1;
+                }
+                .tidal-album-card-track-count {
                     white-space: nowrap;
+                    flex-shrink: 0;
                 }
 
                 /* ═══ Mobile Responsive ═══ */
@@ -1167,6 +1182,7 @@
         if (searchTimer) clearTimeout(searchTimer);
         
         if (!query) {
+          this.searchCache = {};
           this.showEmpty();
           return;
         }
@@ -1330,7 +1346,7 @@
       });
 
       // Re-run search with new mode
-      const query = document.querySelector(".tidal-search-input")?.value;
+      const query = document.querySelector(".tidal-search-input")?.value.trim();
       if (query) {
         this.performSearch(query);
       }
@@ -1342,6 +1358,19 @@
     },
 
     async performSearch(query) {
+      const cacheKey = `${this.searchMode}:${query}`;
+
+      // Return cached results immediately — no network call
+      if (this.searchCache[cacheKey]) {
+        console.log(`[TidalSearch] Cache hit for "${cacheKey}"`);
+        const data = this.searchCache[cacheKey];
+        this.currentResults = data;
+        if (this.searchMode === "track") this.renderTrackResults(data);
+        else if (this.searchMode === "artist") this.renderArtistResults(data);
+        else this.renderAlbumResults(data);
+        return;
+      }
+
       this.showLoading();
 
       try {
@@ -1379,6 +1408,9 @@
         }
 
         if (!data) throw new Error("All search mirrors failed");
+
+        // Cache the result
+        this.searchCache[cacheKey] = data;
         this.currentResults = data;
 
         // Render based on mode
@@ -1570,7 +1602,10 @@
                alt="${this.escapeHtml(album.title)}"
                onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 160 160%22%3E%3Crect fill=%22%23282828%22 width=%22160%22 height=%22160%22/%3E%3Ctext x=%2280%22 y=%2290%22 text-anchor=%22middle%22 fill=%22%23666%22 font-size=%2240%22%3E🎵%3C/text%3E%3C/svg%3E'">
           <div class="tidal-album-card-title">${this.escapeHtml(album.title)}</div>
-          <div class="tidal-album-card-artist">${this.escapeHtml(artistName)}</div>
+          <div class="tidal-album-card-artist">
+            <span class="tidal-album-card-artist-name">${this.escapeHtml(artistName)}</span>
+            ${album.numberOfTracks ? `<span class="tidal-album-card-track-count">• ${album.numberOfTracks} tracks</span>` : ""}
+          </div>
         </div>
       `;
     },
@@ -1613,10 +1648,12 @@
       });
 
       // Add click handlers for save buttons
-      container.querySelectorAll(".tidal-save-btn").forEach((btn, index) => {
+      container.querySelectorAll(".tidal-save-btn").forEach((btn) => {
         btn.onclick = (e) => {
           e.stopPropagation();
-          this.saveTrack(items[index], btn);
+          const trackId = btn.dataset.trackId;
+          const track = items.find((t) => String(t.id) === String(trackId));
+          if (track) this.saveTrack(track, btn);
         };
       });
     },
@@ -1903,47 +1940,74 @@
     // covers for RPC
 
     async searchCoverForRPC(title, artist, trackId) {
+      const tag = `[TidalSearch:searchCoverForRPC]`;
       try {
-        const query = `${title} ${artist}`;
-        let data = null;
+        const query = `${title} ${artist}`.trim();
+        console.log(`${tag} Starting cover search | query="${query}" trackId=${trackId ?? "none"}`);
 
-        for (const baseUrl of shuffled(ALL_SEARCH_MIRRORS)) {
+        let data = null;
+        let successMirror = null;
+
+        const mirrors = shuffled(ALL_SEARCH_MIRRORS);
+        console.log(`${tag} Trying ${mirrors.length} mirrors...`);
+
+        for (const baseUrl of mirrors) {
           try {
             const url = `${baseUrl}/search/?s=${encodeURIComponent(query)}`;
+            console.log(`${tag} Trying mirror: ${baseUrl}`);
             const response = this.api.fetch
               ? await this.api.fetch(url)
               : await fetch(url);
-            if (!response.ok) continue;
+            if (!response.ok) {
+              console.warn(`${tag} Mirror ${baseUrl} returned HTTP ${response.status} - skipping`);
+              continue;
+            }
             data = await response.json();
+            successMirror = baseUrl;
+            console.log(`${tag} Mirror succeeded: ${baseUrl}`);
             break;
           } catch (e) {
-            console.warn(`[TidalSearch] Cover search failed on ${baseUrl}:`, e.message);
+            console.warn(`${tag} Mirror ${baseUrl} threw error: ${e.message}`);
           }
         }
 
-        if (!data) return null;
+        if (!data) {
+          console.error(`${tag} All mirrors failed for query="${query}" - no cover available`);
+          return null;
+        }
+
         const items = data?.data?.items || [];
+        console.log(`${tag} Search returned ${items.length} item(s) from ${successMirror}`);
 
-        if (items.length > 0 && items[0].album?.cover) {
-          const coverUrl = `https://resources.tidal.com/images/${items[0].album.cover.replace(/-/g, "/")}/640x640.jpg`;
-
-          // Update database if we have a track ID
-          if (trackId && this.api.library?.updateTrackCoverUrl) {
-            try {
-              await this.api.library.updateTrackCoverUrl(trackId, coverUrl);
-              console.log(
-                "[TidalSearch] Updated cover_url in database for track:",
-                trackId,
-              );
-            } catch (err) {
-              console.log("[TidalSearch] Could not update database:", err);
-            }
-          }
-
-          return coverUrl;
+        if (items.length === 0) {
+          console.warn(`${tag} No search results for query="${query}"`);
+          return null;
         }
+
+        const firstItem = items[0];
+        console.log(`${tag} First result: title="${firstItem.title}" artist="${firstItem.artist?.name ?? "unknown"}" album="${firstItem.album?.title ?? "unknown"}" cover=${firstItem.album?.cover ?? "MISSING"}`);
+
+        if (!firstItem.album?.cover) {
+          console.warn(`${tag} First result has no album.cover field | title="${firstItem.title}"`);
+          return null;
+        }
+
+        const coverUrl = `https://resources.tidal.com/images/${firstItem.album.cover.replace(/-/g, "/")}/640x640.jpg`;
+        console.log(`${tag} Cover URL built: ${coverUrl}`);
+
+        // Update database if we have a track ID
+        if (trackId && this.api.library?.updateTrackCoverUrl) {
+          try {
+            await this.api.library.updateTrackCoverUrl(trackId, coverUrl);
+            console.log(`${tag} Updated cover_url in database for trackId=${trackId}`);
+          } catch (err) {
+            console.warn(`${tag} Could not update database for trackId=${trackId}:`, err);
+          }
+        }
+
+        return coverUrl;
       } catch (error) {
-        console.log("[TidalSearch] Cover search error:", error);
+        console.error(`${tag} Unexpected error:`, error);
       }
 
       return null;
@@ -2295,10 +2359,14 @@
       this.navigationStack.push({
         type: this.currentView,
         scrollPosition: scrollPosition,
-        // Store enough data to restore the view
-        data: this.currentView === "artist" ?
-          document.querySelector(".tidal-results-container").innerHTML :
-          null
+        // Store search state when navigating from search view
+        mode: this.currentView === "search" ? this.searchMode : undefined,
+        query: this.currentView === "search"
+          ? (document.querySelector(".tidal-search-input")?.value || "")
+          : undefined,
+        results: this.currentView === "search" ? this.currentResults : undefined,
+        // Store the raw data so we can re-render cleanly on back navigation
+        artistData: this.currentView === "artist" ? this.currentArtistData : null
       });
 
       // Navigate to album page
@@ -2353,7 +2421,7 @@
       
         // Restore search input
         const input = document.querySelector(".tidal-search-input");
-        if (input) input.value = previousView.query;
+        if (input) input.value = previousView.query ?? "";
       
         // Restore results
         if (this.searchMode === "track") {
@@ -2371,27 +2439,14 @@
         }, 0);
       
         this.updatePanelTitle("Tidal Search");
-      } else if (previousView.type === "artist" && previousView.data) {
+      } else if (previousView.type === "artist" && previousView.artistData) {
         // Restore artist view
         this.currentView = "artist";
-        const container = document.querySelector(".tidal-results-container");
-        if (container) {
-          container.innerHTML = previousView.data;
-
-          // Re-attach event listeners for album clicks
-          container.querySelectorAll(".tidal-album-item").forEach((el) => {
-            const albumId = el.dataset.albumId;
-            if (albumId) {
-              el.onclick = () => this.handleAlbumClick(albumId);
-            }
-          });
-
-          // Re-attach event listeners for track play/save
-          this.attachTrackEventListeners(container);
-        }
+        this.renderArtistPage(previousView.artistData);
 
         // Restore scroll position
         setTimeout(() => {
+          const container = document.querySelector(".tidal-results-container");
           if (container) container.scrollTop = previousView.scrollPosition;
         }, 0);
 
@@ -2431,13 +2486,6 @@
 
       // Extract artist info from first album or first track
       const artist = albums[0]?.artist || tracks[0]?.artists?.[0] || {};
-
-      // Store tracks in currentResults so they can be accessed for playback/saving
-      this.currentResults = {
-        data: {
-          items: tracks
-        }
-      };
 
       const artistPictureUrl = artist.picture
         ? `https://resources.tidal.com/images/${artist.picture.replace(/-/g, "/")}/480x480.jpg`
@@ -2525,7 +2573,7 @@
       container.innerHTML = html;
 
       // Attach event listeners
-      this.attachTrackEventListeners(container);
+      this.attachTrackEventListeners(container, tracks);
 
       // Attach album click listeners
       container.querySelectorAll(".tidal-album-item").forEach((el) => {
@@ -2602,13 +2650,6 @@
       console.log("[TidalSearch] Album data:", albumData);
       console.log("[TidalSearch] Tracks found:", tracks.length, tracks);
 
-      // Store tracks in currentResults so they can be accessed for playback/saving
-      this.currentResults = {
-        data: {
-          items: tracks
-        }
-      };
-
       const coverUrl = album.cover
         ? `https://resources.tidal.com/images/${album.cover.replace(/-/g, "/")}/320x320.jpg`
         : "";
@@ -2654,7 +2695,7 @@
       container.innerHTML = html;
 
       // Attach event listeners
-      this.attachTrackEventListeners(container);
+      this.attachTrackEventListeners(container, tracks);
 
       // Attach save all button listener
       const saveAllBtn = container.querySelector(".tidal-save-all-btn");
@@ -2698,40 +2739,18 @@
       `;
     },
 
-    attachTrackEventListeners(container) {
-      // Get all track items and their data
+    attachTrackEventListeners(container, tracks) {
+      // tracks is passed directly by the caller — no currentResults lookup needed.
+      // This makes playback and save work correctly regardless of navigation state.
       const trackItems = container.querySelectorAll(".tidal-track-item");
-      const tracks = [];
 
       trackItems.forEach((el) => {
-        // Find track data from currentResults or reconstruct from DOM
         const trackId = el.dataset.id;
-        if (trackId) {
-          tracks.push({ id: trackId, element: el });
-        }
-      });
+        const track = tracks.find((t) => String(t.id) === String(trackId));
+        if (!track) return;
 
-      // Add click listeners for play
-      trackItems.forEach((el, index) => {
         el.onclick = (e) => {
           if (e.target.closest(".tidal-save-btn")) return;
-
-          // Find the track in current results
-          const trackId = el.dataset.id;
-          let track = null;
-
-          // Try to find in current results
-          if (this.currentResults?.data?.items) {
-            track = this.currentResults.data.items.find((t) => String(t.id) === String(trackId));
-          }
-
-          // For artist/album pages, we need to search in the response
-          // This is a simplified approach - in production you'd store the full data
-          if (!track) {
-            console.warn("[TidalSearch] Track data not found for playback");
-            return;
-          }
-
           this.playTrack(track, el);
         };
       });
@@ -2741,16 +2760,8 @@
         btn.onclick = (e) => {
           e.stopPropagation();
           const trackId = btn.dataset.trackId;
-
-          // Find track data
-          let track = null;
-          if (this.currentResults?.data?.items) {
-            track = this.currentResults.data.items.find((t) => String(t.id) === String(trackId));
-          }
-
-          if (track) {
-            this.saveTrack(track, btn);
-          }
+          const track = tracks.find((t) => String(t.id) === String(trackId));
+          if (track) this.saveTrack(track, btn);
         };
       });
     },
