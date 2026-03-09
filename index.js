@@ -23,7 +23,14 @@
       "https://arran.monochrome.tf"
     ],
     DETAILS: "https://triton.squid.wtf",         // Artist/Album details
-    STREAM: "https://katze.qqdl.site"            // Stream/playback endpoint
+    STREAM: [
+      "https://hifi-two.spotisaver.net",
+      "https://triton.squid.wtf",
+      "https://vogel.qqdl.site/",
+      "https://tidal.kinoplus.online/",
+      "https://katze.qqdl.site/",
+      "https://arran.monochrome.tf/"
+    ]
   };
 
   // Helper function to get a random search endpoint
@@ -1176,12 +1183,12 @@
         const query = e.target.value.trim();
         // Clear previous timer
         if (searchTimer) clearTimeout(searchTimer);
-        
+
         if (!query) {
           this.showEmpty();
           return;
         }
-        
+
         // Debounce search (500ms)
         searchTimer = setTimeout(() => {
           this.performSearch(query);
@@ -1869,17 +1876,42 @@
     },
 
     async fetchStream(trackId, quality) {
-      const url = `${API_ENDPOINTS.STREAM}/track/?id=${trackId}&quality=${quality}`;
+      const streamEndpoints = Array.isArray(API_ENDPOINTS.STREAM)
+        ? API_ENDPOINTS.STREAM
+        : [API_ENDPOINTS.STREAM];
 
-      // Use CORS-free fetch via Tauri backend
-      const response = this.api.fetch
-        ? await this.api.fetch(url)
-        : await fetch(url);
+      let lastError = null;
 
-      if (!response.ok) {
-        throw new Error(`Failed to get stream: HTTP ${response.status}`);
+      for (const endpoint of streamEndpoints) {
+        try {
+          const url = `${endpoint}/track/?id=${trackId}&quality=${quality}`;
+          console.log(`[TidalSearch] Attempting to fetch stream from: ${endpoint}`);
+
+          // Use CORS-free fetch via Tauri backend
+          const response = this.api.fetch
+            ? await this.api.fetch(url)
+            : await fetch(url);
+
+          if (!response.ok) {
+            console.warn(`[TidalSearch] Endpoint ${endpoint} failed: HTTP ${response.status}`);
+            continue;
+          }
+
+          const data = await response.json();
+          // Basic validation of the response data
+          if (data && data.success !== false) {
+            return data;
+          } else {
+            console.warn(`[TidalSearch] Endpoint ${endpoint} returned unsuccessful data`);
+            continue;
+          }
+        } catch (err) {
+          console.error(`[TidalSearch] Error fetching from ${endpoint}:`, err);
+          lastError = err;
+        }
       }
-      return await response.json();
+
+      throw lastError || new Error("Failed to get stream from any endpoint");
     },
 
     // covers for RPC
