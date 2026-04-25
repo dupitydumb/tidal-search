@@ -1,8 +1,8 @@
 {
-    "name": "Tidal Search",
+    "name": "Tidal Search [Dead]",
     "safe_name": "tidal-search",
-    "version": "2.0.9",
-    "author": "Audion Team",
+    "version": "0.0.0.0",
+    "author": "__",
     "description": "Search and browse tracks from the Tidal catalog",
     "type": "js",
     "entry": "index.js",
@@ -15,7 +15,7 @@
         "settings:write",
         "library:downloadTrack"
     ],
-    "category": "library",
+    "category": "xx",
     "tags": [
         "search",
         "tidal",
