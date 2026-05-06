@@ -7,21 +7,11 @@
   // API Configuration - Multiple endpoints for different services
   const API_ENDPOINTS = {
     SEARCH: [
-      "https://hund.qqdl.site",
-      "https://katze.qqdl.site",
-      "https://tidal.kinoplus.online",
-      "https://maus.qqdl.site",
-      "https://arran.monochrome.tf"
+      "http://x2c2qqf5fo1oonixld2ojpiw.15.235.142.81.sslip.io"
     ],
-    DETAILS: "https://triton.squid.wtf",
+    DETAILS: "http://x2c2qqf5fo1oonixld2ojpiw.15.235.142.81.sslip.io",
     STREAM: [
-      "https://hifi-two.spotisaver.net",
-      "https://triton.squid.wtf",
-      "https://vogel.qqdl.site",
-      "https://tidal.kinoplus.online",
-      "https://katze.qqdl.site",
-      "https://arran.monochrome.tf"
-    ]
+      "http://x2c2qqf5fo1oonixld2ojpiw.15.235.142.81.sslip.io"
   };
 
   // Temporary safeguard: direct DASH segment playback from TIDAL CDN is blocked
