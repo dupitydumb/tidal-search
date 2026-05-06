@@ -15,7 +15,7 @@
         "settings:write",
         "library:downloadTrack"
     ],
-    "category": "xx",
+    "category": "library",
     "tags": [
         "search",
         "tidal",
